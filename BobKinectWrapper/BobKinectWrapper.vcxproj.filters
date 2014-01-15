@@ -21,9 +21,21 @@
     <ClInclude Include="BobKinectWrapper.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="BobNuiStream.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="BobNuiSkeletonStream.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="BobKinectWrapper.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="BobNuiStream.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="BobNuiSkeletonStream.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>

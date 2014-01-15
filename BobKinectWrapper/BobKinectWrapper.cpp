@@ -1,7 +1,9 @@
 #include "BobKinectWrapper.h"
 
-BYTE* BobKinectWrapper::ColorBuffer;
-BYTE* BobKinectWrapper::DepthBuffer;
+BYTE* BobKinectWrapper::ColorBuffer = NULL;
+BYTE* BobKinectWrapper::DepthBuffer = NULL;
+FLOAT BobKinectWrapper::SkeletonBuffer[NUI_SKELETON_COUNT * NUI_SKELETON_POSITION_COUNT*4] = {0};
+NUI_SKELETON_FRAME BobKinectWrapper::SkeletonFrameBuffer;
 
 BobKinectWrapper::BobKinectWrapper(void) : m_pNuiSensor(NULL)
 {
@@ -46,19 +48,41 @@ void BobKinectWrapper::Update(){
 
 
 int BobKinectWrapper::Run(HINSTANCE hInstance, int nCmdShow){
-	const int eventCount = 1;
+	const int eventCount = 3;
 	HANDLE hEvents[eventCount];
 	while(isRunning){
-		
-	//MessageBox(NULL, _T("update"),_T("update"),0);
+
 		hEvents[0] = m_hNextColorFrameEvent;
-		DWORD dwEvent = MsgWaitForMultipleObjects(eventCount, hEvents, FALSE, INFINITE, QS_ALLINPUT);
-		if (WAIT_OBJECT_0 == dwEvent)
-        {
-            Update();
-        }
+		hEvents[1] = m_hNextDepthFrameEvent;
+		hEvents[2] = m_hNextSkeletonEvent;
+		
+		//if(WAIT_OBJECT_0 == WaitForSingleObject(m_hNextColorFrameEvent,0)){
+		//	ProcessColor();
+		//}
+		//if(WAIT_OBJECT_0 == WaitForSingleObject(m_hNextDepthFrameEvent,0)){
+		//	ProcessDepth();
+		//}
+		//if(WAIT_OBJECT_0 == WaitForSingleObject(m_hNextSkeletonEvent,0)){
+		//	ProcessSkeleton();
+		//}
+		
+			ProcessSkeleton();
+
+		//DWORD dwEvent = WaitForMultipleObjects(eventCount, hEvents, FALSE, 0);
+		//if (WAIT_OBJECT_0 == dwEvent)
+  //      {
+		//	ProcessColor();
+  //      }
+		//if(WAIT_OBJECT_0+1 == dwEvent){
+		//	ProcessDepth();
+		//}
+		//if(WAIT_OBJECT_0+2 == dwEvent){
+		//	ProcessSkeleton();
+		//}
 		
 	}
+	delete []ColorBuffer;
+	delete []DepthBuffer;
 	return 0;
 }
 
@@ -88,7 +112,11 @@ HRESULT BobKinectWrapper::CreateFirstConnected(){
 	}
 
 	if(NULL != m_pNuiSensor){
-		hr = m_pNuiSensor->NuiInitialize(NUI_INITIALIZE_FLAG_USES_COLOR|NUI_INITIALIZE_FLAG_USES_DEPTH_AND_PLAYER_INDEX);
+		hr = m_pNuiSensor->NuiInitialize(
+			NUI_INITIALIZE_FLAG_USES_COLOR
+			|NUI_INITIALIZE_FLAG_USES_DEPTH_AND_PLAYER_INDEX
+			|NUI_INITIALIZE_FLAG_USES_SKELETON);
+
 		if(SUCCEEDED(hr)){
 			m_hNextColorFrameEvent = CreateEvent(NULL, TRUE, FALSE, NULL);
 
@@ -111,6 +139,13 @@ HRESULT BobKinectWrapper::CreateFirstConnected(){
 				m_hNextDepthFrameEvent,
 				&m_pDepthStreamHandle);
 		}
+
+		if(SUCCEEDED(hr)){
+			m_hNextSkeletonEvent = CreateEvent(NULL, TRUE, FALSE, NULL);
+
+			hr = m_pNuiSensor->NuiSkeletonTrackingEnable(m_hNextSkeletonEvent,0);
+		}
+
 	}
 
 	if(NULL == m_pNuiSensor || FAILED(hr)){
@@ -142,7 +177,7 @@ void BobKinectWrapper::ProcessColor(){
 		memcpy_s(ColorBuffer, LockedRect.size, LockedRect.pBits,LockedRect.size);
 	}
 
-	TCHAR buffer[1024];
+	//TCHAR buffer[1024];
 	//wsprintf(buffer,_T("%d"), LockedRect.size);
 	//MessageBox(NULL, _T("processingColor"),buffer,0);
 	pTexture->UnlockRect(0);
@@ -187,6 +222,41 @@ void BobKinectWrapper::ProcessDepth(){
 
 }
 
+void BobKinectWrapper::ProcessSkeleton(){
+	NUI_SKELETON_FRAME skeletonFrame = {0};
+
+	HRESULT hr = m_pNuiSensor->NuiSkeletonGetNextFrame(0,&skeletonFrame);
+	if(FAILED(hr)){
+		return;
+	}
+
+	SkeletonFrameBuffer = skeletonFrame;
+
+	m_pNuiSensor->NuiTransformSmooth(&skeletonFrame, NULL);
+
+	for(int i = 0; i < NUI_SKELETON_COUNT; i++){
+		NUI_SKELETON_TRACKING_STATE trackingState = skeletonFrame.SkeletonData[i].eTrackingState;
+		
+		NUI_SKELETON_DATA skel = skeletonFrame.SkeletonData[i];
+		//if(NUI_SKELETON_TRACKED == trackingState)
+		{
+			for(int j = 0; j < NUI_SKELETON_POSITION_COUNT; j++){				
+				NUI_SKELETON_POSITION_TRACKING_STATE jointState = skel.eSkeletonPositionTrackingState[j];
+				//if(NUI_SKELETON_POSITION_TRACKED == jointState)
+				{
+					SkeletonFrameBuffer.SkeletonData[i].SkeletonPositions[j] = skel.SkeletonPositions[j];
+					SkeletonBuffer[i*NUI_SKELETON_POSITION_COUNT*4+j*4]=skel.SkeletonPositions[j].x;
+					SkeletonBuffer[i*NUI_SKELETON_POSITION_COUNT*4+j*4+1]=skel.SkeletonPositions[j].y;
+					SkeletonBuffer[i*NUI_SKELETON_POSITION_COUNT*4+j*4+2]=skel.SkeletonPositions[j].z;
+					SkeletonBuffer[i*NUI_SKELETON_POSITION_COUNT*4+j*4+3]=skel.SkeletonPositions[j].w;
+				}
+			}
+		}
+	}
+
+}
+
+
 void runProc(){
 	sgkinect->Run(NULL , 0);
 
@@ -207,6 +277,16 @@ void PollDepthData(BYTE* ppDepthBuffer, int BufferSize){
 	if(NULL ==sgkinect->DepthBuffer)
 		return;
 	memcpy_s(ppDepthBuffer, BufferSize, sgkinect->DepthBuffer,BufferSize);
+}
+
+void PollSkeletonData(float SkeletonBuffer[], int BufferSize){
+	if(NULL == sgkinect->SkeletonBuffer)
+		return;
+	memcpy_s(SkeletonBuffer,BufferSize, sgkinect->SkeletonBuffer, BufferSize);
+}
+
+void PollSkeletonFrame(BobStruct* skeletonFrame){
+	memcpy_s(skeletonFrame,sizeof(BobStruct),&(sgkinect->SkeletonFrameBuffer),sizeof(BobStruct));
 }
 
 void StopKinect(){

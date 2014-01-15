@@ -80,10 +80,14 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClInclude Include="BobKinectWrapper.h" />
+    <ClInclude Include="BobNuiSkeletonStream.h" />
+    <ClInclude Include="BobNuiStream.h" />
     <ClInclude Include="Define.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="BobKinectWrapper.cpp" />
+    <ClCompile Include="BobNuiSkeletonStream.cpp" />
+    <ClCompile Include="BobNuiStream.cpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

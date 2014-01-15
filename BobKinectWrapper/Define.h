@@ -10,6 +10,9 @@
 #include <tchar.h>
 #include <strsafe.h>
 
+
+#include "NuiApi.h"
+
 template<class Interface>
 inline void SafeRelease( Interface *& pInterfaceToRelease )
 {
